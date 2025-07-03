@@ -15,7 +15,7 @@ type Note struct {
 	Name    string   `json:"name"`
 	Content string   `json:"content"`
 	Files   []string `json:"files"`
-	Tags    string   `json:"tags"`
+	Tags    []string `json:"tags"`
 }
 
 type User struct {
@@ -43,6 +43,12 @@ func main() {
 	r.POST("/notes", addNote)
 	r.DELETE("/notes/:id", deleteNote)
 	r.PATCH("/notes/:id", updateNote)
+
+	r.GET("/users", getUsers)
+	r.GET("/users/:id", getUser)
+	r.POST("/users", addUser)
+	r.DELETE("/users/:id", deleteUser)
+	r.PATCH("/users/:id", updateUser)
 
 	r.Run("0.0.0.0:8080")
 }
