@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func getNotes(c *gin.Context) {
@@ -125,33 +127,66 @@ func updateNote(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": note})
 }
 
-func getUsers(c *gin.Context) {
-	var users []User
-	if err := db.Preload("Notes").Find(&users).Error; err != nil {
-		log.Println("Ошибка получения пользователей: ", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения пользоватлей: ", err)})
-		return
-	}
-	c.JSON(http.StatusOK, users)
-}
+func signIn(c *gin.Context) {
+	userName := c.Param("userName")
+	password := c.Param("password")
 
-func getUser(c *gin.Context) {
-	id := c.Param("id")
 	var user User
-	if err := db.Preload("Notes").First(&user, id).Error; err != nil {
+	if err := db.Where("userName = ?", userName).Preload("Notes").First(&user).Error; err != nil {
 		log.Println("Ошибка получения пользователя: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения пользователя: ", err)})
 		return
 	}
-	c.JSON(http.StatusOK, user)
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err == nil {
+		c.JSON(http.StatusOK, user)
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Введен неверный пароль: ", err)})
+	}
 }
 
-func addUser(c *gin.Context) {
-
+func signUp(c *gin.Context) {
+	var user User
+	if err := c.ShouldBindJSON(&user); err != nil {
+		log.Println("Введены неверные данные: ", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Введены неверные данные: ", err)})
+		return
+	}
+	var users []User
+	if err := db.Find(&users).Error; err != nil {
+		log.Println("Ошибка получения пользователей: ", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения пользователей: ", err)})
+		return
+	}
+	if slices.ContainsFunc(users, func(u User) bool {
+		return u.UserName == user.UserName
+	}) == false {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+		if err != nil {
+			log.Println("Ошибка, введен неверный пароль: ", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Ошибка, введен неверный пароль: ", err)})
+			return
+		}
+		user.Password = string(hashedPassword)
+		if err := db.Create(&user); err != nil {
+			log.Println("Ошибка создания пользовтеля", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка создания пользовтеля", err)})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintln("Вы успешно создали новый аккаунт!")})
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Пользоватeл с таким именем уже имеется!")})
+	}
 }
 
 func deleteUser(c *gin.Context) {
-
+	id := c.Param("id")
+	if err := db.Delete(&User{}, id); err != nil {
+		log.Println("Ошибка удаления вашего аккаунта", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка удаления вашего аккаунта", err)})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Ваш аккаунт успешно удален!"})
 }
 
 func updateUser(c *gin.Context) {

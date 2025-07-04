@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
@@ -11,19 +12,22 @@ import (
 var db *gorm.DB
 
 type Note struct {
-	Id      int64    `json:"id" gorm:"primaryKey"`
-	Name    string   `json:"name"`
-	Content string   `json:"content"`
-	Files   []string `json:"files"`
-	Tags    []string `json:"tags"`
+	Id        int64     `json:"id" gorm:"primaryKey"`
+	Name      string    `json:"name"`
+	Content   string    `json:"content"`
+	Files     []string  `json:"files"`
+	Tags      []string  `json:"tags"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type User struct {
-	Id            int64  `json:"id" gorm:"primaryKey"`
-	Login         string `json:"login"`
-	Password_Hash string `json:"password_hash"`
-	Password_Salt string `json:"password_salt"`
-	Notes         []Note `json:"notes"`
+	Id        int64     `json:"id" gorm:"primaryKey"`
+	UserName  string    `json:"userName"`
+	Password  string    `json:"password"`
+	Notes     []Note    `json:"notes" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 func main() {
@@ -44,9 +48,8 @@ func main() {
 	r.DELETE("/notes/:id", deleteNote)
 	r.PATCH("/notes/:id", updateNote)
 
-	r.GET("/users", getUsers)
-	r.GET("/users/:id", getUser)
-	r.POST("/users", addUser)
+	r.GET("/signIn/:userName/:password", signIn)
+	r.POST("/signUp", signUp)
 	r.DELETE("/users/:id", deleteUser)
 	r.PATCH("/users/:id", updateUser)
 
