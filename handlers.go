@@ -57,13 +57,19 @@ func addNote(c *gin.Context) {
 		Tags:    tags,
 	}
 
+	if err := db.Create(&note).Error; err != nil {
+		log.Println("Ошибка создания заметки: ", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка создания заметки: ", err)})
+		return
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"message": note})
 }
 
 func deleteNote(c *gin.Context) {
 	var note Note
 	id := c.Param("id")
-	if err := db.First(&note, id); err != nil {
+	if err := db.First(&note, id).Error; err != nil {
 		log.Println("Ошибка получения заметки: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения заметки: ", err)})
 		return
@@ -133,8 +139,8 @@ func signIn(c *gin.Context) {
 
 	var user User
 	if err := db.Where("userName = ?", userName).Preload("Notes").First(&user).Error; err != nil {
-		log.Println("Ошибка получения пользователя: ", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения пользователя: ", err)})
+		log.Println("Пользователя с таким имнем не сущетсвет: ", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Пользователя с таким имнем не сущетсвет: ", err)})
 		return
 	}
 
@@ -158,9 +164,9 @@ func signUp(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения пользователей: ", err)})
 		return
 	}
-	if slices.ContainsFunc(users, func(u User) bool {
+	if !slices.ContainsFunc(users, func(u User) bool {
 		return u.UserName == user.UserName
-	}) == false {
+	}) {
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 		if err != nil {
 			log.Println("Ошибка, введен неверный пароль: ", err)
@@ -168,7 +174,7 @@ func signUp(c *gin.Context) {
 			return
 		}
 		user.Password = string(hashedPassword)
-		if err := db.Create(&user); err != nil {
+		if err := db.Create(&user).Error; err != nil {
 			log.Println("Ошибка создания пользовтеля", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка создания пользовтеля", err)})
 			return
@@ -180,15 +186,67 @@ func signUp(c *gin.Context) {
 }
 
 func deleteUser(c *gin.Context) {
-	id := c.Param("id")
-	if err := db.Delete(&User{}, id); err != nil {
-		log.Println("Ошибка удаления вашего аккаунта", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка удаления вашего аккаунта", err)})
+	var user User
+	userName := c.Param("userName")
+	password := c.Param("password")
+	if err := db.Where("userName = ?", userName).Preload("Notes").First(&user).Error; err != nil {
+		log.Println("Пользоватлея с таким именем не существует: ", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Пользоватлея с таким именем не существует: ", err)})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Ваш аккаунт успешно удален!"})
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err == nil {
+		if err := db.Where("userName = ?", userName).Delete(&User{}).Error; err != nil {
+			log.Println("Ошибка удаления вашего аккаунта", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка удаления вашего аккаунта", err)})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Ваш аккаунт успешно удален!"})
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Неверный пароль, доступ закрыт!\n", err)})
+	}
 }
 
 func updateUser(c *gin.Context) {
+	var user User
+	userName := c.Param("userName")
+	password := c.Param("password")
+
+	if err := db.Where("userName = ?", userName).Preload("Notes").First(&user).Error; err != nil {
+		log.Println("Пользоватлея с таким именем не существует: ", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Пользоватлея с таким именем не существует: ", err)})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err == nil {
+		var updateUser User
+		if err := c.ShouldBindJSON(&updateUser); err != nil {
+			log.Println("Введены неверные данные: ", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Введены неверные данные: ", err)})
+			return
+		}
+		if updateUser.UserName != "" {
+			user.UserName = updateUser.UserName
+		}
+		if updateUser.Password != "" {
+			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(updateUser.Password), bcrypt.DefaultCost)
+			if err != nil {
+				log.Println("Ошибка, введен неверный пароль: ", err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Ошибка, введен неверный пароль: ", err)})
+				return
+			}
+			user.Password = string(hashedPassword)
+		}
+		if len(updateUser.Notes) > 0 {
+			user.Notes = updateUser.Notes
+		}
+		if err := db.Save(&user).Error; err != nil {
+			log.Println("Ошибка обнолвения пользоватлеля: ", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка обнолвения пользоватлеля: ", err)})
+			return
+		}
+		c.JSON(http.StatusOK, user)
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintln("Неверный пароль, доступ закрыт!\n", err)})
+	}
 
 }

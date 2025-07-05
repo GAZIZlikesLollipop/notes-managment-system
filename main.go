@@ -12,11 +12,12 @@ import (
 var db *gorm.DB
 
 type Note struct {
-	Id        int64     `json:"id" gorm:"primaryKey"`
-	Name      string    `json:"name"`
+	Id        int64  `json:"id" gorm:"primaryKey"`
+	Name      string `json:"name"`
+	UserID    uint
 	Content   string    `json:"content"`
-	Files     []string  `json:"files"`
-	Tags      []string  `json:"tags"`
+	Files     []string  `json:"files" gorm:"type:text;serializer:json"`
+	Tags      []string  `json:"tags" gorm:"type:text;serializer:json"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -25,7 +26,7 @@ type User struct {
 	Id        int64     `json:"id" gorm:"primaryKey"`
 	UserName  string    `json:"userName"`
 	Password  string    `json:"password"`
-	Notes     []Note    `json:"notes" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Notes     []Note    `json:"notes" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;foregignKey:UserID"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -50,8 +51,8 @@ func main() {
 
 	r.GET("/signIn/:userName/:password", signIn)
 	r.POST("/signUp", signUp)
-	r.DELETE("/users/:id", deleteUser)
-	r.PATCH("/users/:id", updateUser)
+	r.DELETE("/user/:userName/:password", deleteUser)
+	r.PATCH("/user/:userName/:password", updateUser)
 
 	r.Run("0.0.0.0:8080")
 }
