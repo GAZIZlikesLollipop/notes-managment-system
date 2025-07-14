@@ -13,8 +13,18 @@ import (
 )
 
 func getNotes(c *gin.Context) {
+	rawId, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Был введен неверный айди пользователя"})
+		return
+	}
+	userID, correct := rawId.(int64)
+	if !correct {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка трансфорамации id"})
+		return
+	}
 	var notes []Note
-	if err := db.Find(&notes).Error; err != nil {
+	if err := db.Where("user_id = ?", userID).Find(&notes).Error; err != nil {
 		log.Println("Ошибка получения заметок: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения заметок: ", err)})
 		return
@@ -23,9 +33,19 @@ func getNotes(c *gin.Context) {
 }
 
 func getNote(c *gin.Context) {
+	rawId, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Был введен неверный айди пользователя"})
+		return
+	}
+	userID, correct := rawId.(int64)
+	if !correct {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка трансфорамации id"})
+		return
+	}
 	id := c.Param("id")
 	var note Note
-	if err := db.First(&note, id).Error; err != nil {
+	if err := db.Where("user_id = ?", userID).First(&note, id).Error; err != nil {
 		log.Println("Ошибка получения заметки: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения заметки: ", err)})
 		return
@@ -77,9 +97,19 @@ func addNote(c *gin.Context) {
 }
 
 func deleteNote(c *gin.Context) {
+	rawId, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Был введен неверный айди пользователя"})
+		return
+	}
+	uId, correct := rawId.(int64)
+	if !correct {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка трансфорамации id"})
+		return
+	}
 	var note Note
 	id := c.Param("id")
-	if err := db.First(&note, id).Error; err != nil {
+	if err := db.Where("user_id = ?", uId).First(&note, id).Error; err != nil {
 		log.Println("Ошибка получения заметки: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения заметки: ", err)})
 		return
@@ -106,9 +136,19 @@ func deleteNote(c *gin.Context) {
 }
 
 func updateNote(c *gin.Context) {
+	rawId, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Был введен неверный айди пользователя"})
+		return
+	}
+	userID, correct := rawId.(int64)
+	if !correct {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка трансфорамации id"})
+		return
+	}
 	id := c.Param("id")
 	var note Note
-	if err := db.First(&note, id).Error; err != nil {
+	if err := db.Where("user_id = ?", userID).First(&note, id).Error; err != nil {
 		log.Println("Ошибка получения заметки: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения заметки: ", err)})
 		return
@@ -135,7 +175,7 @@ func updateNote(c *gin.Context) {
 	if tags := c.PostFormArray("tags"); len(tags) <= 0 {
 		note.Tags = tags
 	}
-	if err := db.Save(note).Error; err != nil {
+	if err := db.Save(&note).Error; err != nil {
 		log.Println("Ошибка обнвления заметки: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка обнвления заметки: ", err)})
 		return

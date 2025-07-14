@@ -17,7 +17,7 @@ var db *gorm.DB
 type Note struct {
 	Id        int64     `json:"id" gorm:"primaryKey"`
 	Name      string    `json:"name"`
-	UserID    uint      `json:"UserID" gorm:"not null"`
+	UserID    uint      `json:"user_id" gorm:"not null"`
 	Content   string    `json:"content"`
 	Files     []string  `json:"files" gorm:"type:text;serializer:json"`
 	Tags      []string  `json:"tags" gorm:"type:text;serializer:json"`
