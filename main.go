@@ -2,9 +2,12 @@ package main
 
 import (
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -12,26 +15,42 @@ import (
 var db *gorm.DB
 
 type Note struct {
-	Id        int64  `json:"id" gorm:"primaryKey"`
-	Name      string `json:"name"`
-	UserID    uint
+	Id        int64     `json:"id" gorm:"primaryKey"`
+	Name      string    `json:"name"`
+	UserID    uint      `json:"UserID" gorm:"not null"`
 	Content   string    `json:"content"`
 	Files     []string  `json:"files" gorm:"type:text;serializer:json"`
 	Tags      []string  `json:"tags" gorm:"type:text;serializer:json"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type User struct {
 	Id        int64     `json:"id" gorm:"primaryKey"`
-	UserName  string    `json:"userName"`
+	UserName  string    `json:"user_name"`
 	Password  string    `json:"password"`
 	Notes     []Note    `json:"notes" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;foregignKey:UserID"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Claims struct {
+	UserID   int64  `json:"user_id"`
+	UserName string `json:"user_name"`
+	jwt.RegisteredClaims
+}
+
+type AuthReq struct {
+	UserName string `json:"user_name"`
+	Password string `json:"password"`
 }
 
 func main() {
+	if strings.TrimSpace(os.Getenv("JWT_SECRET_KEY")) == "" {
+		if err := generateJwtSecretKey(); err != nil {
+			log.Fatalln("Ошибка геенрации секретного ключа: ", err)
+		}
+	}
 	r := gin.Default()
 	var err error
 	dsn := "host=localhost user=postgres dbname=notesdb port=5432 sslmode=disable"
@@ -43,16 +62,20 @@ func main() {
 		log.Fatalln("Ошибка миграции элемнтов базы данных: ", err)
 	}
 
-	r.GET("/notes", getNotes)
-	r.GET("/notes/:id", getNote)
-	r.POST("/notes", addNote)
-	r.DELETE("/notes/:id", deleteNote)
-	r.PATCH("/notes/:id", updateNote)
+	protected := r.Group("/api")
+	protected.Use(AuthMiddleware())
+	{
+		protected.GET("/notes", getNotes)
+		protected.GET("/notes/:id", getNote)
+		protected.POST("/notes", addNote)
+		protected.DELETE("/notes/:id", deleteNote)
+		protected.PATCH("/notes/:id", updateNote)
 
-	r.GET("/signIn/:userName/:password", signIn)
+		protected.DELETE("/user", deleteUser)
+		protected.PATCH("/user", updateUser)
+	}
+	r.POST("/signIn", signIn)
 	r.POST("/signUp", signUp)
-	r.DELETE("/user/:userName/:password", deleteUser)
-	r.PATCH("/user/:userName/:password", updateUser)
 
 	r.Run("0.0.0.0:8080")
 }
