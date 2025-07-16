@@ -52,8 +52,8 @@ func main() {
 		}
 	}
 	r := gin.Default()
-	var err error
 	dsn := "host=localhost user=postgres dbname=notesdb port=5432 sslmode=disable"
+	var err error
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalln("Ошибка открытия базы данных: ", err)
@@ -65,6 +65,7 @@ func main() {
 	protected := r.Group("/api")
 	protected.Use(AuthMiddleware())
 	{
+		protected.GET("/files/:fileName", getNoteFile)
 		protected.GET("/notes", getNotes)
 		protected.GET("/notes/:id", getNote)
 		protected.POST("/notes", addNote)

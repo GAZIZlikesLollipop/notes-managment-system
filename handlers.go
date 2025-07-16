@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -65,13 +66,23 @@ func addNote(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка трансфорамации id"})
 		return
 	}
+	rawName, exists := c.Get("userName")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Был введен неверное имя пользователя"})
+		return
+	}
+	userName, correct := rawName.(string)
+	if !correct {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка трансфорамации userName"})
+		return
+	}
 	name := c.PostForm("name")
 	content := c.PostForm("content")
 	filesStr := c.PostFormArray("files")
 	tags := c.PostFormArray("tags")
 	var files []string
 	for _, f := range filesStr {
-		filePath, err := saveFile(c, "note", strings.ReplaceAll(f, " ", ""), "notes")
+		filePath, err := saveFile(c, "note", strings.ReplaceAll(f, " ", ""), fmt.Sprintf("%s%d", userName, userID))
 		if err != nil {
 			log.Println("Ошибка получения пути файла: ", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения пути файла: ", err)})
@@ -93,7 +104,7 @@ func addNote(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": note})
+	c.JSON(http.StatusCreated, gin.H{"message": "Вы успешно добавили новую заметку"})
 }
 
 func deleteNote(c *gin.Context) {
@@ -132,7 +143,7 @@ func deleteNote(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка удаления заметки: ", err)})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Заметка удалена"})
+	c.JSON(http.StatusOK, gin.H{"message": "Заметка успешено удалена"})
 }
 
 func updateNote(c *gin.Context) {
@@ -144,6 +155,16 @@ func updateNote(c *gin.Context) {
 	userID, correct := rawId.(int64)
 	if !correct {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка трансфорамации id"})
+		return
+	}
+	rawName, exists := c.Get("userName")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Был введен неверное имя пользователя"})
+		return
+	}
+	userName, correct := rawName.(string)
+	if !correct {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка трансфорамации userName"})
 		return
 	}
 	id := c.Param("id")
@@ -162,7 +183,7 @@ func updateNote(c *gin.Context) {
 	if filesStr := c.PostFormArray("files"); len(filesStr) <= 0 {
 		var files []string
 		for _, f := range filesStr {
-			filePath, err := saveFile(c, "note", strings.ReplaceAll(f, " ", ""), "notes")
+			filePath, err := saveFile(c, "note", strings.ReplaceAll(f, " ", ""), fmt.Sprintf("%s%d", userName, userID))
 			if err != nil {
 				log.Println("Ошибка получения пути файла: ", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка получения пути файла: ", err)})
@@ -180,7 +201,7 @@ func updateNote(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintln("Ошибка обнвления заметки: ", err)})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": note})
+	c.JSON(http.StatusOK, gin.H{"message": "Вы успешно обновили заметку"})
 }
 
 func signIn(c *gin.Context) {
@@ -342,4 +363,37 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func getNoteFile(c *gin.Context) {
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalln("Ошибка поулчения домашней директории: ", err)
+	}
+
+	fileName := c.Param("fileName")
+
+	rawId, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Был введен неверный айди пользователя"})
+		return
+	}
+	userID, correct := rawId.(int64)
+	if !correct {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка трансфорамации id"})
+		return
+	}
+	rawName, exists := c.Get("userName")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Был введен неверное имя пользователя"})
+		return
+	}
+	userName, correct := rawName.(string)
+	if !correct {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка трансфорамации userName"})
+		return
+	}
+
+	c.File(filepath.Join(homeDir, "notes-files", fmt.Sprintf("%s%d", userName, userID), fileName))
 }

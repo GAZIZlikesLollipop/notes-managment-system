@@ -28,7 +28,7 @@ func saveFile(
 		return "", err
 	}
 
-	absolutePath := filepath.Join(homeDir, "notes-media", directory)
+	absolutePath := filepath.Join(homeDir, "notes-files", directory)
 
 	file, err := c.FormFile(field)
 	if err != nil {
